@@ -2,7 +2,8 @@
 title: github + hexo + next建立个人博客
 date: 2019-01-09 09:25:43
 tags:
-- 工具
+- Hexo
+- Blog
 categories:
 - 工具
 ---
