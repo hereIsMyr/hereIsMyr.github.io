@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+<html class="theme-next gemini use-motion" lang="zh-CN">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2">
+
+<link rel="stylesheet" href="/css/main.css?v=6.7.0">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=6.7.0">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=6.7.0">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=6.7.0">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=6.7.0" color="#222">
+
+
+
+
+
+
+
+<script id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Gemini',
+    version: '6.7.0',
+    sidebar: {"position":"right","display":"post","offset":12,"b2t":false,"scrollpercent":true,"onmobile":false},
+    fancybox: false,
+    fastclick: false,
+    lazyload: false,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+  
+
+
+
+
+  <meta name="description" content="JWT策略通常在做权限控制的时候，会用到jwt策略（json web token），在Koa中jwt大致实现思路是:  用户登录时将username和password（MD5加密后）与数据库匹配后取出用户数据 确定一个用户信息唯一标识符，作为key（通常是email或者userId），将用户信息储存在redis中 用jsonwebtoken + 预定好的秘钥加密令牌（通常是email或者userI">
+<meta name="keywords" content="NodeJs,Koa">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Koa2中实现一个登录有效时间可刷新的jwt策略">
+<meta property="og:url" content="https://hereismyr.github.io/2019/03/26/Koa2中实现一个登录有效时间可刷新的jwt策略/index.html">
+<meta property="og:site_name" content="鱼坑">
+<meta property="og:description" content="JWT策略通常在做权限控制的时候，会用到jwt策略（json web token），在Koa中jwt大致实现思路是:  用户登录时将username和password（MD5加密后）与数据库匹配后取出用户数据 确定一个用户信息唯一标识符，作为key（通常是email或者userId），将用户信息储存在redis中 用jsonwebtoken + 预定好的秘钥加密令牌（通常是email或者userI">
+<meta property="og:locale" content="zh-CN">
+<meta property="og:updated_time" content="2019-05-20T06:45:11.180Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Koa2中实现一个登录有效时间可刷新的jwt策略">
+<meta name="twitter:description" content="JWT策略通常在做权限控制的时候，会用到jwt策略（json web token），在Koa中jwt大致实现思路是:  用户登录时将username和password（MD5加密后）与数据库匹配后取出用户数据 确定一个用户信息唯一标识符，作为key（通常是email或者userId），将用户信息储存在redis中 用jsonwebtoken + 预定好的秘钥加密令牌（通常是email或者userI">
+
+
+
+
+
+
+  <link rel="canonical" href="https://hereismyr.github.io/2019/03/26/Koa2中实现一个登录有效时间可刷新的jwt策略/">
+
+
+
+<script id="page.configurations">
+  CONFIG.page = {
+    sidebar: "",
+  };
+</script>
+
+  <title>Koa2中实现一个登录有效时间可刷新的jwt策略 | 鱼坑</title>
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .motion-element,
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-title { opacity: initial; }
+
+  .use-motion .logo,
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="zh-CN">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-right page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">鱼坑</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+    
+      
+        <p class="site-subtitle">才疏学浅莫笑</p>
+      
+    
+    
+  </div>
+
+  <div class="site-nav-toggle">
+    <button aria-label="切换导航栏">
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  
+    <ul id="menu" class="menu">
+      
+        
+        
+        
+          
+          <li class="menu-item menu-item-home">
+
+    
+    
+    
+      
+    
+
+    
+
+    <a href="/" rel="section"><i class="menu-item-icon fa fa-fw fa-home"></i> <br>首页</a>
+
+  </li>
+        
+        
+        
+          
+          <li class="menu-item menu-item-tags">
+
+    
+    
+    
+      
+    
+
+    
+
+    <a href="/tags/" rel="section"><i class="menu-item-icon fa fa-fw fa-tags"></i> <br>标签</a>
+
+  </li>
+        
+        
+        
+          
+          <li class="menu-item menu-item-categories">
+
+    
+    
+    
+      
+    
+
+    
+
+    <a href="/categories/" rel="section"><i class="menu-item-icon fa fa-fw fa-th"></i> <br>分类</a>
+
+  </li>
+        
+        
+        
+          
+          <li class="menu-item menu-item-archives">
+
+    
+    
+    
+      
+    
+
+    
+
+    <a href="/archives/" rel="section"><i class="menu-item-icon fa fa-fw fa-archive"></i> <br>归档</a>
+
+  </li>
+
+      
+      
+    </ul>
+  
+
+  
+
+  
+</nav>
+
+
+
+  
+
+
+
+</div>
+    </header>
+
+    
+
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+            
+
+          
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="https://hereismyr.github.io/2019/03/26/Koa2中实现一个登录有效时间可刷新的jwt策略/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="文刀鱼">
+      <meta itemprop="description" content="i'm just a new guy learning programming">
+      <meta itemprop="image" content="/images/avatar.png">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="鱼坑">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">Koa2中实现一个登录有效时间可刷新的jwt策略
+
+              
+            
+          </h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+
+            
+            
+            
+
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">发表于</span>
+              
+
+              
+                
+              
+
+              <time title="创建时间：2019-03-26 10:15:53" itemprop="dateCreated datePublished" datetime="2019-03-26T10:15:53+08:00">2019-03-26</time>
+            
+
+            
+              
+
+              
+                
+                <span class="post-meta-divider">|</span>
+                
+
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                
+                  <span class="post-meta-item-text">更新于</span>
+                
+                <time title="修改时间：2019-05-20 14:45:11" itemprop="dateModified" datetime="2019-05-20T14:45:11+08:00">2019-05-20</time>
+              
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">分类于</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing"><a href="/categories/零碎点/" itemprop="url" rel="index"><span itemprop="name">零碎点</span></a></span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h4 id="JWT策略"><a href="#JWT策略" class="headerlink" title="JWT策略"></a>JWT策略</h4><p>通常在做权限控制的时候，会用到jwt策略（json web token），在Koa中jwt大致实现思路是:</p>
+<ul>
+<li>用户登录时将username和password（MD5加密后）与数据库匹配后取出用户数据</li>
+<li>确定一个用户信息唯一标识符，作为key（通常是email或者userId），将用户信息储存在redis中</li>
+<li>用<code>jsonwebtoken</code> + 预定好的秘钥加密令牌（通常是email或者userId的键值对），设置过期时间</li>
+</ul>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">const</span> jwt = <span class="built_in">require</span>(<span class="string">'jsonwebtoken'</span>);</span><br><span class="line"></span><br><span class="line"><span class="keyword">await</span> redis.set(result.email, <span class="built_in">JSON</span>.stringify(result)); <span class="comment">// result是匹配成功后从数据库取出的用户数据</span></span><br><span class="line"><span class="keyword">const</span> token = jwt.sign(&#123; <span class="attr">email</span>: result.email &#125;, cfg.TOKEN_SECRET, &#123; <span class="attr">expiresIn</span>: <span class="string">'2h'</span> &#125;); <span class="comment">// 生成加密token</span></span><br></pre></td></tr></table></figure>
+<ul>
+<li>返回前端加密好的token，并在前端调用接口的时候通过header传递回来</li>
+<li>在洋葱圈最外层增加一个jwt错误处理中间件，和一个jwt中间件（可以设置直接通行不受jwt限制的路由），匹配上的路由（又不在unless里），会被<code>koa-jwt</code>中间件进行处理，如果没有token或token失效，则<code>koa-jwt</code>中间件会抛出401异常，被外层错误处理中间件捕获，返回前端授权失败信息</li>
+</ul>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">const</span> jwtKoa = <span class="built_in">require</span>(<span class="string">'koa-jwt'</span>);</span><br><span class="line"></span><br><span class="line"><span class="comment">// jwt错误处理</span></span><br><span class="line">app.use(<span class="function">(<span class="params">ctx, next</span>) =&gt;</span> &#123;</span><br><span class="line">    <span class="keyword">return</span> next().catch(<span class="function">(<span class="params">err</span>) =&gt;</span> &#123;</span><br><span class="line">        <span class="built_in">console</span>.error(err);</span><br><span class="line">        <span class="keyword">if</span>(err.status === <span class="number">401</span>) &#123;</span><br><span class="line">            ctx.status = <span class="number">401</span>;</span><br><span class="line">            ctx.body = <span class="string">'Protected resource, use Authorization header to get access\n'</span>;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">else</span> &#123;</span><br><span class="line">            <span class="keyword">throw</span> err;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;)</span><br><span class="line">&#125;);</span><br><span class="line"></span><br><span class="line"><span class="comment">// 初始化koa-jwt</span></span><br><span class="line">app.use(jwtKoa(&#123;<span class="attr">secret</span>: cfg.TOKEN_SECRET&#125;).unless(&#123;<span class="attr">path</span>: [<span class="regexp">/^\/auth\//</span>, /^\/public\<span class="comment">//, /\/statistics\/getSurveyStatisticsData/]&#125;));</span></span><br></pre></td></tr></table></figure>
+<ul>
+<li>在路由前另写一个中间件：使用预定好的秘钥解密token，如果解不出来，则token过期，能解出来，则通过令牌值去redis中取用户数据，挂载在ctx下</li>
+</ul>
+<blockquote>
+<p>router.js</p>
+</blockquote>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">const</span> Router = <span class="built_in">require</span>(<span class="string">'koa-router'</span>);</span><br><span class="line"><span class="keyword">const</span> tokenParser = <span class="built_in">require</span>(<span class="string">'../middleware/token-parser'</span>);</span><br><span class="line"></span><br><span class="line"><span class="keyword">const</span> router = <span class="keyword">new</span> Router();</span><br><span class="line">router.use(tokenParser);</span><br></pre></td></tr></table></figure>
+<blockquote>
+<p>token-parser.js</p>
+</blockquote>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">const</span> jwt = <span class="built_in">require</span>(<span class="string">'jsonwebtoken'</span>);</span><br><span class="line"><span class="keyword">const</span> util = <span class="built_in">require</span>(<span class="string">'util'</span>);</span><br><span class="line"><span class="keyword">const</span> verify = util.promisify(jwt.verify) ;<span class="comment">// 将解密方法返回值转成Promise对象</span></span><br><span class="line"></span><br><span class="line"><span class="built_in">module</span>.exports = <span class="keyword">async</span> (ctx, next) =&gt; &#123;</span><br><span class="line">    <span class="keyword">const</span> token = ctx.header.authorization; <span class="comment">// 获取token</span></span><br><span class="line">    <span class="keyword">if</span>(token) &#123;</span><br><span class="line">        <span class="keyword">const</span> infoKey = <span class="keyword">await</span> verify(token.split(<span class="string">' '</span>)[<span class="number">1</span>], cfg.TOKEN_SECRET); <span class="comment">// 解密，获取infoKey</span></span><br><span class="line">        <span class="keyword">let</span> userInfo = <span class="keyword">await</span> redis.get(infoKey.email); <span class="comment">// 用infoKey作为键 去redis中取用户信息。</span></span><br><span class="line">        <span class="keyword">if</span>(!userInfo) &#123; <span class="comment">// 若redis中没有对应的用户信息，也提示token已失效</span></span><br><span class="line">            resp.sendAuthFailedResponse(ctx, <span class="string">'token已过期'</span>); <span class="comment">// resp是封装的返回响应工具类</span></span><br><span class="line">            <span class="keyword">return</span>;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    ctx.userInfo = <span class="built_in">JSON</span>.parse(userInfo);<span class="comment">//把用户信息存到请求的上下文中。</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+<blockquote>
+<font color="#fc6423">这里的解密其实画蛇添足了，我被网上的写法误导了(╯°□°）╯︵ ┻━┻，实际上不需要再手动解密获取<code>infoKey</code>，我阅读<code>koa-jwt</code>源码后发现，它已经将token解密，并且将解密后的键值对挂载在<code>ctx.state.user</code>上了，也可以更换挂载的key，例如在初始化<code>koa-jwt</code>时传入配置项<code>key: &#39;infoKey&#39;</code>，则<code>koa-jwt</code>会把解密后的token挂载在<code>ctx.state.infoKey</code>上</font>
+</blockquote>
+<hr>
+<h4 id="为什么要自己实现一个JWT策略"><a href="#为什么要自己实现一个JWT策略" class="headerlink" title="为什么要自己实现一个JWT策略"></a>为什么要自己实现一个JWT策略</h4><ol>
+<li><code>jsonwebtoken</code>包生成的token不能刷新有效时间，也就是一旦我生成一个有效期2小时的token，那么它2小时后必定过期，哪怕我在1小时59分的时候还调过服务端的接口，也没法保持自己的登录状态。因为本次后台系统项目业务需求，期望在确认用户活跃的情况下始终保持登录状态（即只要调服务接口，有效期就重置），所以<code>jsonwebtoken</code>不能满足业务需求</li>
+<li><code>jsonwebtoken</code>生成token后，是保存在服务器的内存中的，如果服务器宕机，则所有用户的登录状态都会消失</li>
+<li>本次项目是针对内部人员使用的系统，所以安全性要求并没有那么高</li>
+</ol>
+<hr>
+<h4 id="动手模拟一个简单的JWT策略"><a href="#动手模拟一个简单的JWT策略" class="headerlink" title="动手模拟一个简单的JWT策略"></a>动手模拟一个简单的JWT策略</h4><ul>
+<li>用户登录时将username和password（MD5加密后）与数据库匹配后取出用户数据</li>
+<li>使用邮箱 + 时间戳制作一个infoKey，利用redis有效时间的可控性实现token过期逻辑</li>
+<li>用系统自带的aes加密infoKey，返回前端加密后的token</li>
+</ul>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 配置信息</span></span><br><span class="line"><span class="keyword">const</span> cfg = <span class="built_in">require</span>(<span class="string">'iqs-config'</span>);</span><br><span class="line"><span class="comment">// 自己写的响应、redis、aes加密、工具类</span></span><br><span class="line"><span class="keyword">const</span> &#123; resp, redis, aesUtil &#125; = <span class="built_in">require</span>(<span class="string">'iqs-utils'</span>);</span><br><span class="line"><span class="comment">// npm安装的md5包</span></span><br><span class="line"><span class="keyword">const</span> md5 = <span class="built_in">require</span>(<span class="string">'md5'</span>);</span><br><span class="line"></span><br><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * 登录接口</span></span><br><span class="line"><span class="comment"> * @param ctx</span></span><br><span class="line"><span class="comment"> * @returns &#123;Promise&lt;void&gt;&#125;</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="keyword">const</span> signIn = <span class="keyword">async</span> (ctx) =&gt; &#123;</span><br><span class="line">    <span class="keyword">const</span> data = ctx.request.body;</span><br><span class="line">    <span class="keyword">if</span> (!data.email || !util.isEmail(data.email)) &#123;</span><br><span class="line">        resp.sendArgMissingResponse(ctx, <span class="string">'邮箱账号无效'</span>);</span><br><span class="line">        <span class="keyword">return</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">if</span> (!data.password || data.password.length &lt; <span class="number">6</span> || data.password.length &gt; <span class="number">20</span>)&#123;</span><br><span class="line">        resp.sendArgMissingResponse(ctx, <span class="string">'密码为空或不符合规定'</span>);</span><br><span class="line">        <span class="keyword">return</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 取出用户数据</span></span><br><span class="line">    <span class="keyword">const</span> result = <span class="keyword">await</span> UserModel.findOne(&#123;</span><br><span class="line">        email: data.email,</span><br><span class="line">        password: md5(data.password)</span><br><span class="line">    &#125;);</span><br><span class="line">    <span class="keyword">if</span> (result === <span class="literal">null</span>) &#123;</span><br><span class="line">        resp.sendAuthFailedResponse(ctx, <span class="string">'0101'</span>,<span class="string">'用户名或密码错误'</span>);</span><br><span class="line">        <span class="keyword">return</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 设置infoKey并且用aes加密生成token，将用户信息存在redis中，设置8小时过期</span></span><br><span class="line">    <span class="keyword">const</span> infoKey = result.email + <span class="built_in">Date</span>.now();</span><br><span class="line">    <span class="keyword">const</span> token = aesUtil.encrypt(infoKey, cfg.TOKEN_SECRET);</span><br><span class="line">    <span class="keyword">await</span> redis.set(infoKey, <span class="built_in">JSON</span>.stringify(result),  <span class="number">8</span> * <span class="number">3600</span>);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 返回前端部分需要的信息，以及token</span></span><br><span class="line">    resp.sendSuccessResponse(ctx, &#123;</span><br><span class="line">        name: result.name,</span><br><span class="line">        level: result.level,</span><br><span class="line">        uuid: result._id,</span><br><span class="line">        token: token,</span><br><span class="line">        deptCode1: result.deptCode1,</span><br><span class="line">        deptName1: result.deptName1,</span><br><span class="line">        deptCode2: result.deptCode2,</span><br><span class="line">        deptName2: result.deptName2,</span><br><span class="line">        deptCode3: result.deptCode3,</span><br><span class="line">        deptName3: result.deptName3,</span><br><span class="line">    &#125;);</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+<ul>
+<li>在路由前编写一个校验token的中间件</li>
+<li>模拟通行不受限制的路由匹配</li>
+<li>当前端携带token请求任意需要token的接口，重置token有效时间</li>
+</ul>
+<blockquote>
+<font color="#fc6423">router.js</font>
+</blockquote>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">const</span> Router = <span class="built_in">require</span>(<span class="string">'koa-router'</span>);</span><br><span class="line"><span class="keyword">const</span> tokenParser = <span class="built_in">require</span>(<span class="string">'../middleware/token-parser'</span>);</span><br><span class="line"></span><br><span class="line"><span class="keyword">const</span> router = <span class="keyword">new</span> Router();</span><br><span class="line">router.use(tokenParser);</span><br><span class="line"><span class="comment">// 开始匹配路由</span></span><br><span class="line"></span><br><span class="line"><span class="built_in">module</span>.exports = router;</span><br></pre></td></tr></table></figure>
+<blockquote>
+<font color="#fc6423">token-parser.js</font>
+</blockquote>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">const</span> cfg = <span class="built_in">require</span>(<span class="string">'iqs-config'</span>);</span><br><span class="line"><span class="keyword">const</span> &#123; aesUtil, redis, resp &#125; = <span class="built_in">require</span>(<span class="string">'iqs-utils'</span>);</span><br><span class="line"></span><br><span class="line"><span class="built_in">module</span>.exports = <span class="keyword">async</span> (ctx, next) =&gt; &#123;</span><br><span class="line">    <span class="comment">//免token登录</span></span><br><span class="line">    <span class="keyword">const</span> ignoreToken = [<span class="regexp">/^\/auth\//</span>, /^\/public\<span class="comment">//, /\/statistics\/getSurveyStatisticsData/].some(reg =&gt; &#123;</span></span><br><span class="line">        <span class="keyword">return</span> reg.test(ctx.request.url);</span><br><span class="line">    &#125;);</span><br><span class="line">    <span class="keyword">if</span> (ignoreToken) &#123;</span><br><span class="line">        <span class="keyword">await</span> next();</span><br><span class="line">        <span class="keyword">return</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">const</span> token = ctx.header.authorization;</span><br><span class="line">    <span class="keyword">if</span> ( !token) &#123;</span><br><span class="line">        resp.sendAuthFailedResponse(ctx, <span class="string">'0003'</span>, <span class="string">'安全认证信息有误'</span>);</span><br><span class="line">        <span class="keyword">return</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">const</span> infoKey = aesUtil.decrypt(token, cfg.TOKEN_SECRET);<span class="comment">//解密，获取key</span></span><br><span class="line">    <span class="keyword">let</span> userInfo = <span class="keyword">await</span> redis.get(infoKey); <span class="comment">//用infoKey作为键 去redis中取用户信息。</span></span><br><span class="line">    <span class="keyword">if</span>(!userInfo) &#123;<span class="comment">//若redis中没有对应的用户信息，则表示token已失效</span></span><br><span class="line">        resp.sendAuthFailedResponse(ctx, <span class="string">'0003'</span>, <span class="string">'token已过期'</span>);</span><br><span class="line">        <span class="keyword">return</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    ctx.userInfo = <span class="built_in">JSON</span>.parse(userInfo);<span class="comment">//把用户信息存到请求的上下文中。</span></span><br><span class="line">    <span class="keyword">await</span> redis.set(infoKey, userInfo, <span class="number">8</span> * <span class="number">3600</span>);<span class="comment">//更新token时效</span></span><br><span class="line">    <span class="keyword">await</span> next();</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+<hr>
+<p>完结撒花~</p>
+
+      
+    </div>
+
+    
+
+    
+    
+    
+
+    
+
+    
+      
+    
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/NodeJs/" rel="tag"># NodeJs</a>
+          
+            <a href="/tags/Koa/" rel="tag"># Koa</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2019/03/25/Koa2中上传图片并返回url给前端/" rel="next" title="Koa2中上传图片并返回url给前端">
+                <i class="fa fa-chevron-left"></i> Koa2中上传图片并返回url给前端
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+  </div>
+
+
+          </div>
+          
+
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            文章目录
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            站点概览
+          </li>
+        </ul>
+      
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <img class="site-author-image" itemprop="image" src="/images/avatar.png" alt="文刀鱼">
+            
+              <p class="site-author-name" itemprop="name">文刀鱼</p>
+              <p class="site-description motion-element" itemprop="description">i'm just a new guy learning programming</p>
+          </div>
+
+          
+            <nav class="site-state motion-element">
+              
+                <div class="site-state-item site-state-posts">
+                
+                  <a href="/archives/">
+                
+                    <span class="site-state-item-count">3</span>
+                    <span class="site-state-item-name">日志</span>
+                  </a>
+                </div>
+              
+
+              
+                
+                
+                <div class="site-state-item site-state-categories">
+                  <a href="/categories/index.html">
+                    
+                    
+                      
+                    
+                      
+                    
+                    <span class="site-state-item-count">2</span>
+                    <span class="site-state-item-name">分类</span>
+                  </a>
+                </div>
+              
+
+              
+                
+                
+                <div class="site-state-item site-state-tags">
+                  <a href="/tags/index.html">
+                    
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                    <span class="site-state-item-count">4</span>
+                    <span class="site-state-item-name">标签</span>
+                  </a>
+                </div>
+              
+            </nav>
+          
+
+          
+
+          
+
+          
+
+          
+          
+
+          
+            
+          
+          
+
+        </div>
+      </div>
+
+      
+      <!--noindex-->
+        <div class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+            
+            
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-4"><a class="nav-link" href="#JWT策略"><span class="nav-number">1.</span> <span class="nav-text">JWT策略</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#为什么要自己实现一个JWT策略"><span class="nav-number">2.</span> <span class="nav-text">为什么要自己实现一个JWT策略</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#动手模拟一个简单的JWT策略"><span class="nav-number">3.</span> <span class="nav-text">动手模拟一个简单的JWT策略</span></a></li></ol></div>
+            
+
+          </div>
+        </div>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love" id="animate">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">文刀鱼</span>
+
+  
+
+  
+</div>
+
+
+
+
+
+
+
+
+
+        
+
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+          <span id="scrollpercent"><span>0</span>%</span>
+        
+      </div>
+    
+
+    
+
+    
+
+    
+  </div>
+
+  
+
+<script>
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  <script src="/lib/jquery/index.js?v=2.1.3"></script>
+
+  
+  <script src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+
+  
+  <script src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+
+
+  
+
+
+  <script src="/js/src/utils.js?v=6.7.0"></script>
+
+  <script src="/js/src/motion.js?v=6.7.0"></script>
+
+
+
+  
+  
+
+
+  <script src="/js/src/affix.js?v=6.7.0"></script>
+
+  <script src="/js/src/schemes/pisces.js?v=6.7.0"></script>
+
+
+
+
+  
+  <script src="/js/src/scrollspy.js?v=6.7.0"></script>
+<script src="/js/src/post-details.js?v=6.7.0"></script>
+
+
+
+  
+
+
+  <script src="/js/src/bootstrap.js?v=6.7.0"></script>
+
+
+
+  
+  
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>
